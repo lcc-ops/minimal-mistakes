@@ -1,5 +1,5 @@
 ---
-title: "博客归档"
+title: "工具"
 layout: single
 permalink: /tool/
 ---

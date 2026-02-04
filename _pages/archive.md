@@ -1,5 +1,5 @@
 ---
-title: "博客归档"
+title: "归档"
 layout: archive
 permalink: /archive/
 entries_layout: grid  # 网格视图（默认是 list 列表视图）

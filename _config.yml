@@ -116,7 +116,7 @@ author:
   name             : "lcc"
   avatar           : "assets/images/44374ffc03d80aec7a3c32874eebfdc0.jpg"# path of avatar image, e.g. "/assets/images/bio-photo.jpg"
   bio              : "Sec&AI、代码审计、SDLC"
-  location         : "重庆"
+  location         :
   email            : 2088643687@qq.com
   links:
     - label: "Email"
