@@ -1,7 +1,11 @@
 # main links
 main:
-  - title: "博客归档"
-    url: /blog/
+  - title: "归档"
+    url: /archive/
+  - title: "分类"
+    url: /categories/
+  - title: "标签"
+    url: /tags/
   - title: "工具"
     url: /tool/
   - title: "个人主页"
