@@ -41,16 +41,16 @@ categories:
 
 ### Pass-01（JS绕过）
 
-- 直接上传php文件，反馈：![image-20220704113341535](../assets/images/web_sec/image-20220704113341535.png)
+- 直接上传php文件，反馈：![image-20220704113341535](/assets/images/web_sec/image-20220704113341535.png)
 
 
-- 查看页面源码可知为前端jsp检查文件类型，应采用插件删除jsp源码或使用burp suite绕过，这里使用burpsuite绕过![image-20220704113630222](../assets/images/web_sec/image-20220704113630222.png)
+- 查看页面源码可知为前端jsp检查文件类型，应采用插件删除jsp源码或使用burp suite绕过，这里使用burpsuite绕过![image-20220704113630222](/assets/images/web_sec/image-20220704113630222.png)
 
 - 使用中国菜刀访问可成功访问
 
   访问网址为http://10.2.2.1/upload/1.php，口令为菜刀
 
-   ![image-20220704124616448](../assets/images/web_sec/image-20220704124616448.png)
+   ![image-20220704124616448](/assets/images/web_sec/image-20220704124616448.png)
 
 
 
@@ -58,24 +58,24 @@ categories:
 
 ### Pass-02（Content-Type绕过）
 
-- 先上传php看反馈：![image-20220704130716522](../assets/images/web_sec/image-20220704130716522.png)
+- 先上传php看反馈：![image-20220704130716522](/assets/images/web_sec/image-20220704130716522.png)
 - 再查看jsp可以知道这次为后端检测文件类型
-- 通过burp suite抓包可以发现，上传php文件，Content-Type为application/octet-stream，而上传jpg文件Content-Type为image/jpeg，上传jpg可以成功，因此上传php文件时尝试将Content-Type设置为image/jpeg：![image-20220704131223681](../assets/images/web_sec/image-20220704131223681.png)
+- 通过burp suite抓包可以发现，上传php文件，Content-Type为application/octet-stream，而上传jpg文件Content-Type为image/jpeg，上传jpg可以成功，因此上传php文件时尝试将Content-Type设置为image/jpeg：![image-20220704131223681](/assets/images/web_sec/image-20220704131223681.png)
 - 然后用中国菜刀访问成功。
 
 ### Pass-03（文件后缀绕过）
 
-- 先上传php看反馈：![image-20220704131504342](../assets/images/web_sec/image-20220704131504342.png)
+- 先上传php看反馈：![image-20220704131504342](/assets/images/web_sec/image-20220704131504342.png)
 
 - 这里只过滤四种文件类型，因此可以尝试修改后缀名为php3、phtml
 
-  ![image-20220704135339073](../assets/images/web_sec/image-20220704135339073.png)
+  ![image-20220704135339073](/assets/images/web_sec/image-20220704135339073.png)
 
 - 这里将文件改为1.php3上传后使用中国菜刀可以成功访问
 
   设置的地址和口令：![image-20220704135450686](C:\Users\lcc\AppData\Roaming\Typora\typora-user-images\image-20220704135450686.png)
 
-  进入的界面：![image-20220704135427254](../assets/images/web_sec/image-20220704135427254.png)
+  进入的界面：![image-20220704135427254](/assets/images/web_sec/image-20220704135427254.png)
 
 - 经过尝试，后缀名为php3和phtml都可以。
 
@@ -83,13 +83,13 @@ categories:
 
 - 先上传php看反馈：
 
-  ![image-20220704140000232](../assets/images/web_sec/image-20220704140000232.png)
+  ![image-20220704140000232](/assets/images/web_sec/image-20220704140000232.png)
 
 - 前面的几种方式都不行了，考虑到apache识别文件拓展名时是从右边往左边识别，遇到不认识的拓展名就不管，而遇到认识的就会将其作为拓展名，因此**将1.php文件名修改为1.php.xxxxx**并上传，上传成功
 
 - 访问链接，显然成功：
 
-  ![image-20220704140232571](../assets/images/web_sec/image-20220704140232571.png)
+  ![image-20220704140232571](/assets/images/web_sec/image-20220704140232571.png)
 
 - 接下来就使用中国菜刀访问，可以正常访问
 
@@ -99,13 +99,13 @@ categories:
 
 - 查看源码，发现这一关没有将大写转小写，而且也没过滤".PHP"等拓展名，因此直接将拓展名改为.PHP即可
 
-  ![image-20220704143633798](../assets/images/web_sec/image-20220704143633798.png)
+  ![image-20220704143633798](/assets/images/web_sec/image-20220704143633798.png)
 
 - 上中国菜刀：
 
-  ![image-20220704143713994](../assets/images/web_sec/image-20220704143713994.png)
+  ![image-20220704143713994](/assets/images/web_sec/image-20220704143713994.png)
 
-  ![image-20220704143733879](../assets/images/web_sec/image-20220704143733879.png)
+  ![image-20220704143733879](/assets/images/web_sec/image-20220704143733879.png)
 
 - 成功
 
@@ -113,11 +113,11 @@ categories:
 
 - 查看源码没有对末尾的空格做过滤，而单纯的在文件名最末尾加上空格是加不上去的，故而使用burp suite进行添加
 
-  ![image-20220704145749912](../assets/images/web_sec/image-20220704145749912.png)
+  ![image-20220704145749912](/assets/images/web_sec/image-20220704145749912.png)
 
 - forward后文件上传成功，右键图片获取链接就可以使用中国菜刀访问了：
 
-  ![image-20220704145901834](../assets/images/web_sec/image-20220704145901834.png)![image-20220704145951143](../assets/images/web_sec/image-20220704145951143.png)
+  ![image-20220704145901834](/assets/images/web_sec/image-20220704145901834.png)![image-20220704145951143](/assets/images/web_sec/image-20220704145951143.png)
 
 - 成功
 
@@ -127,17 +127,17 @@ categories:
 
 ### Pass-07（末尾'.'绕过）
 
-- 对于**windows**来说，文件名除了末尾为空格会去掉以外，末尾为点都可以去掉，因此与Pass-06类似![image-20220704154405033](../assets/images/web_sec/image-20220704154405033.png)然后forward后得到链接即可使用中国菜刀访问：![image-20220704154557017](../assets/images/web_sec/image-20220704154557017.png)![image-20220704154653563](../assets/images/web_sec/image-20220704154653563.png)
+- 对于**windows**来说，文件名除了末尾为空格会去掉以外，末尾为点都可以去掉，因此与Pass-06类似![image-20220704154405033](/assets/images/web_sec/image-20220704154405033.png)然后forward后得到链接即可使用中国菜刀访问：![image-20220704154557017](/assets/images/web_sec/image-20220704154557017.png)![image-20220704154653563](/assets/images/web_sec/image-20220704154653563.png)
 
 ### Pass-08（::$DATA绕过）
 
 - 在**windows**中如果文件名加上"::\$DATA"就会把“::\$DATA”后面的数据当做文件流处理而不做任何检测，也就是相当于前面的绕过
 
-- 使用burp suite拦截然后在文件名末尾添加“::\$DATA”并foward即可![image-20220704155121745](../assets/images/web_sec/image-20220704155121745.png)
+- 使用burp suite拦截然后在文件名末尾添加“::\$DATA”并foward即可![image-20220704155121745](/assets/images/web_sec/image-20220704155121745.png)
 
 - 上传成功，得到链接后使用中国菜刀连接。
 
-  ![image-20220704155549007](../assets/images/web_sec/image-20220704155549007.png)
+  ![image-20220704155549007](/assets/images/web_sec/image-20220704155549007.png)
 
 ### Pass-09（“.”、空格、“::\$DATA”混合绕过）
 
@@ -153,11 +153,11 @@ categories:
 
 - 然后使用burp suite进行前三题一样的操作即可
 
-  ![image-20220704162958451](../assets/images/web_sec/image-20220704162958451.png)
+  ![image-20220704162958451](/assets/images/web_sec/image-20220704162958451.png)
 
   得到链接：http://10.2.2.1/upload/1.php%20.
 
-   ![image-20220704163550553](../assets/images/web_sec/image-20220704163550553.png)
+   ![image-20220704163550553](/assets/images/web_sec/image-20220704163550553.png)
 
 
 
@@ -202,20 +202,20 @@ categories:
   save_path = ../upload/1.php%00
   ```
 
-   ![image-20220704202300856](../assets/images/web_sec/image-20220704202300856.png)
+   ![image-20220704202300856](/assets/images/web_sec/image-20220704202300856.png)
 
 - 上传成功，以下是生成的图片链接：http://10.2.2.1/upload/1.php%EF%BF%BD/1420220704202529.jpg，这个链接是找不到文件的，改成http://10.2.2.1/upload/1.php才可以访问
 
 - 看upload可以发现已经上传成功了：
 
-  ![image-20220704202756648](../assets/images/web_sec/image-20220704202756648.png)
+  ![image-20220704202756648](/assets/images/web_sec/image-20220704202756648.png)
 
 ### Pass-12（Post“%00”绕过）
 
 - 相比上一关，这一关的save_path不再可控，因为这关用post传输save_path
 
-- 这一关属实是没想到，只知道用%00去做截断，事实的确如此，不过需要在Request的Hex格式包中在将php后面的一个字节的内容改为“00”![image-20220704205509413](../assets/images/web_sec/image-20220704205509413.png)
+- 这一关属实是没想到，只知道用%00去做截断，事实的确如此，不过需要在Request的Hex格式包中在将php后面的一个字节的内容改为“00”![image-20220704205509413](/assets/images/web_sec/image-20220704205509413.png)
 
 - get可以用%00的原因是可以对其解码，而post不行
 
-  ![image-20220704210543380](../assets/images/web_sec/image-20220704210543380.png)
+  ![image-20220704210543380](/assets/images/web_sec/image-20220704210543380.png)

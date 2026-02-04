@@ -122,7 +122,7 @@ StringModel: 用于表示字符串。
 
 另外还需要注意，支持以上Model的前提是`setAPIBuiltinEnabled(true)`，以下是代码逻辑：
 
-![image-20240825232404351](../assets/images/web_sec/image-20240825232404351.png)
+![image-20240825232404351](/assets/images/web_sec/image-20240825232404351.png)
 
 ## 漏洞复现
 

@@ -37,14 +37,14 @@ categories:
 
 如果出现缺少大量java文件，可能是jdk版本不一致，保持运行codeql的jdk版本、java_home以及运行jadx-gui的java版本一致，也可能是使用jadx-gui反编译为java源代码时存在编码或其他问题，根据以下配置尝试：
 
-![image-20250710204659656](../assets/images/web_sec/image-20250710204659656.png)
+![image-20250710204659656](/assets/images/web_sec/image-20250710204659656.png)
 
-![image-20250710204723833](../assets/images/web_sec/image-20250710204723833.png)
+![image-20250710204723833](/assets/images/web_sec/image-20250710204723833.png)
 
-![image-20250710204741918](../assets/images/web_sec/image-20250710204741918.png)
+![image-20250710204741918](/assets/images/web_sec/image-20250710204741918.png)
 
-![image-20250710204748504](../assets/images/web_sec/image-20250710204748504.png)
+![image-20250710204748504](/assets/images/web_sec/image-20250710204748504.png)
 
 
 
-![image-20250710204755000](../assets/images/web_sec/image-20250710204755000.png)
+![image-20250710204755000](/assets/images/web_sec/image-20250710204755000.png)
