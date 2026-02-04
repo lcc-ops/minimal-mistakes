@@ -117,11 +117,11 @@ author:
   avatar           : "assets/images/44374ffc03d80aec7a3c32874eebfdc0.jpg"# path of avatar image, e.g. "/assets/images/bio-photo.jpg"
   bio              : "Sec&AI、代码审计、SDLC"
   location         : "重庆"
-  email            :
+  email            : 2088643687@qq.com
   links:
     - label: "Email"
       icon: "fas fa-fw fa-envelope-square"
-      url: "mailto:2088643687@qq.com"
+#      url: "mailto:2088643687@qq.com"
     - label: "Website"
       icon: "fas fa-fw fa-link"
       # url: "https://your-website.com"
