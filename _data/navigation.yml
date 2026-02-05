@@ -2,17 +2,17 @@
 main:
   - title: 首页
     url: /
-  - title: Blog
+  - title: 博客
     children:
       - title: 网络安全
         url: /blog/web安全/
       - title: AI
         url: /blog/ai/
-  - title: News
+  - title: 咨询
     children:
       - title: AI 资讯
         url: /news/ai/
-  - title: Tools
+  - title: 工具
     children:
       - title: 效率工具
         url: /tools/efficiency/
