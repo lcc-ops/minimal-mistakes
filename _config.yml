@@ -311,13 +311,43 @@ compress_html:
   ignore:
     envs: development
 # 注册 News 集合（管理 AI、漏洞等资讯）
+#collections:
+#  news:  # 集合名称（小写，对应后续文件夹名）
+#    output: true  # 开启静态页面生成，每条资讯生成独立 HTML
+#    permalink: /news/:categories/:title/  # 每条资讯的 URL 格式
+## Defaults
+#defaults:
+#  # _posts
+#  - scope:
+#      path: ""
+#      type: posts
+#    values:
+#      layout: single
+#      author_profile: true
+#      read_time: true
+#      comments: # true
+#      share: true
+#      related: true
+# 注册 3 个自定义集合
 collections:
-  news:  # 集合名称（小写，对应后续文件夹名）
-    output: true  # 开启静态页面生成，每条资讯生成独立 HTML
-    permalink: /news/:categories/:title/  # 每条资讯的 URL 格式
-# Defaults
+  news:
+    output: true
+    permalink: /news/:categories/:title/
+  tools:
+    output: true
+    permalink: /tools/:categories/:title/
+  blog:
+    output: true
+    permalink: /blog/:categories/:title/
+
+# 配置 3 个集合的默认属性（支持标签、统一布局）
 defaults:
-  # _posts
+  - scope: { path: "", type: news }
+    values: { layout: single, author_profile: false, sidebar: false }
+  - scope: { path: "", type: tools }
+    values: { layout: single, author_profile: false, sidebar: true }
+  - scope: { path: "", type: blog }
+    values: { layout: single, author_profile: false, sidebar: false }
   - scope:
       path: ""
       type: posts
