@@ -1,7 +1,7 @@
 # main links
 main:
-  - title: "归档"
-    url: /archive/
+#  - title: "归档"
+#    url: /archive/
   - title: "分类"
     url: /categories/
   - title: "标签"
