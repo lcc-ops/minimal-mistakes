@@ -2,11 +2,17 @@
 main:
   - title: 首页
     url: /
-  - title: News  # 第一类导航：仅 AI 子项
+  - title: Blog
+    children:
+      - title: 网络安全
+        url: /blog/web安全/
+      - title: AI
+        url: /blog/ai/
+  - title: News
     children:
       - title: AI 资讯
         url: /news/ai/
-  - title: Tools  # 第二类导航：3个子项
+  - title: Tools
     children:
       - title: 效率工具
         url: /tools/efficiency/
@@ -14,14 +20,7 @@ main:
         url: /tools/intelligence/
       - title: AI 工具
         url: /tools/ai/
-  - title: Blog  # 第三类导航：2个子项
-    children:
-      - title: 网络安全
-        url: /blog/cyber-security/
-      - title: AI 技术
-        url: /blog/ai/
-  - title: 标签汇总
-    url: /tags/  # 全局标签入口，辅助筛选
+
   - title: "个人主页"
     url: /about/
   # - title: "About"
