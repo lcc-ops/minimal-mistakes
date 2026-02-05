@@ -1,34 +1,9 @@
 # main links
 main:
-  - title: 首页
-    url: /
-  - title: 博客
+  - title: "博客归档"
     url: /blog/
-    children:
-      - title: 网络安全
-        url: /blog/sec/
-        children:
-          - title: web安全
-            url: /blog/sec/web
-          - title: 主机安全
-            url: /blog/sec/host
-      - title: AI
-        url: /blog/ai/
-  - title: 咨询
-    url: "#"
-    children:
-      - title: AI 资讯
-        url: /news/ai/
-  - title: 工具
-    url: "#"
-    children:
-      - title: 效率工具
-        url: /tools/efficiency/
-      - title: 情报工具
-        url: /tools/intelligence/
-      - title: AI 工具
-        url: /tools/ai/
-
+  - title: "工具"
+    url: /tool/
   - title: "个人主页"
     url: /about/
   # - title: "About"
