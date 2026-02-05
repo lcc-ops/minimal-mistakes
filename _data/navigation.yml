@@ -3,7 +3,7 @@ main:
   - title: 首页
     url: /
   - title: 博客
-    url: "#"
+    url: /blog/
     children:
       - title: 网络安全
         url: /blog/sec/
