@@ -21,7 +21,7 @@ title                    : "welcome to lcc 's blog"
 title_separator          : "-"
 subtitle                 : # site tagline that appears below site title in masthead
 name                     : "lcc"
-description              : "网络安全、AI、信息等的分享"
+description              : "网络安全、AI等信息的分享"
 url                      : # the base hostname & protocol for your site e.g. "https://mmistakes.github.io"
 baseurl                  : # the subpath of your site, e.g. "/blog"
 repository               : # GitHub username/repo-name e.g. "mmistakes/minimal-mistakes"
@@ -310,8 +310,11 @@ compress_html:
   clippings: all
   ignore:
     envs: development
-
-
+# 注册 News 集合（管理 AI、漏洞等资讯）
+collections:
+  news:  # 集合名称（小写，对应后续文件夹名）
+    output: true  # 开启静态页面生成，每条资讯生成独立 HTML
+    permalink: /news/:categories/:title/  # 每条资讯的 URL 格式
 # Defaults
 defaults:
   # _posts

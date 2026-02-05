@@ -22,7 +22,7 @@ algolia:
   # Exclude more files from indexing
   files_to_exclude:
     - index.html
-    - index.md
+    - 1.md
     - excluded-file.html
     - _posts/2017-11-28-post-exclude-search.md
     - subdirectory/*.html

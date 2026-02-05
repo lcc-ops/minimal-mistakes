@@ -1,13 +1,23 @@
 # main links
 main:
-  - title: "归档"
-    url: /archive/
   - title: "分类"
     url: /categories/
   - title: "标签"
     url: /tags/
+  - title: "资讯"  # 一级导航：资讯（核心入口）
+    children: # 二级下拉导航：拆分 AI、漏洞等细分资讯
+      - title: AI 资讯
+        url: /news/ai/
+#      - title: 待定
+#        url: /news/
   - title: "工具"
-    url: /tool/
+    children:
+      - title: 开发工具
+        url: /tools/development/
+      - title: 情报工具
+        url: /tools/intelligence/
+      - title: AI 工具
+        url: /tools/ai/
   - title: "个人主页"
     url: /about/
   # - title: "About"
