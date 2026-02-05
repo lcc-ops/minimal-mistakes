@@ -6,7 +6,12 @@ main:
     url: "#"
     children:
       - title: 网络安全
-        url: /blog/web安全/
+        url: /blog/sec/
+        children:
+          - title: web安全
+            url: /blog/sec/web
+          - title: 主机安全
+            url: /blog/sec/host
       - title: AI
         url: /blog/ai/
   - title: 咨询
