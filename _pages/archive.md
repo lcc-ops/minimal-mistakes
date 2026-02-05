@@ -7,3 +7,7 @@ classes: wide  # 加宽布局，网格展示更舒展
 author_profile: true  # 显示侧边栏作者信息
 show_excerpts: true  # 显示文章 excerpt 摘要
 ---
+
+{% for post in site.posts %}
+{% include archive-single.html %}
+{% endfor %}
